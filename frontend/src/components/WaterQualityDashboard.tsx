@@ -113,14 +113,16 @@ const WaterQualityDashboard = () => {
 
   return (
     <div className="min-h-screen font-sans text-slate-50 relative overflow-hidden">
-      {/* Background Video Iframe - Added scale-150 to hide YouTube branding/logos */}
-      <iframe
-        className="fixed inset-0 w-[100vw] h-[100vh] z-[-1] pointer-events-none object-cover scale-[1.6]"
-        src="https://www.youtube.com/embed/QnjD8eQYTDs?autoplay=1&mute=1&loop=1&playlist=QnjD8eQYTDs&controls=0&disablekb=1&playsinline=1&modestbranding=1&rel=0&iv_load_policy=3&fs=0&start=120&vq=hd2160"
-        allow="autoplay; encrypted-media; picture-in-picture"
-        title="Background Water Video"
-        style={{ border: 'none' }}
-      ></iframe>
+      {/* Local Background Video */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="fixed inset-0 w-[100vw] h-[100vh] z-[-1] pointer-events-none object-cover"
+      >
+        <source src="/background.mp4" type="video/mp4" />
+      </video>
       
       {/* Slight dark overlay to ensure text remains readable */}
       <div className="fixed inset-0 bg-black/40 z-[-1] pointer-events-none"></div>
