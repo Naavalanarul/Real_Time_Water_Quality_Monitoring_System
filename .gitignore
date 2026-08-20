@@ -6,3 +6,4 @@ frontend/dist/
 .env
 .idea/
 .agent/
+*.mp4
