@@ -1,0 +1,9 @@
+{
+    "device id" : "esp32_Station_01"
+    "timestamp": 1692468148,
+    "sensors": {
+        "pH": 7.54
+        "turbidity": 14.5,
+        "temperature_c": 24.1,
+        "tds_ppm": 450.0
+}
