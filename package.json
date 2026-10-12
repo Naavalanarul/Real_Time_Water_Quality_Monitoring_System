@@ -1,0 +1,8 @@
+{
+  "name": "water-quality-monitoring",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm --prefix frontend install && npm --prefix frontend run build"
+  }
+}

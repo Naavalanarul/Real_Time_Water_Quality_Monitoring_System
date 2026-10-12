@@ -18,8 +18,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # local SQLite file so you can run the whole pipeline with zero external
 # services. Same insert_reading()/fetch_readings() call sites work either way.
 DATABASE_URL = os.environ.get("DATABASE_URL")
-SQLITE_PATH = os.path.join(BASE_DIR, "readings.db")
 USE_SQLITE = not DATABASE_URL
+
+if os.environ.get("VERCEL") and USE_SQLITE:
+    SQLITE_PATH = "/tmp/readings.db"
+else:
+    SQLITE_PATH = os.path.join(BASE_DIR, "readings.db")
 
 if not USE_SQLITE:
     import psycopg2
@@ -284,6 +288,8 @@ def _startup():
         print(f"Table init skipped/failed: {e}")
 
 @app.get("/")
+@app.get("/api")
+@app.get("/api/health")
 def health():
     return {"status": "ok", "db_mode": "sqlite (local)" if USE_SQLITE else "postgres"}
 

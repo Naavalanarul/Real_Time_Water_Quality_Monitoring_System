@@ -12,17 +12,24 @@ import {
   MapPin
 } from 'lucide-react';
 
+interface WaterBody {
+  name: string;
+  type: 'live' | 'simulated';
+  base?: { ph: number; temp: number; tds: number; turbidity: number };
+}
+
 // Predefined modules for different water bodies
-const WATER_BODIES = {
-  lake: { name: 'Freshwater Lake', base: { ph: 7.2, temp: 18.5, tds: 150, turbidity: 2.5 } },
-  river: { name: 'Flowing River', base: { ph: 7.6, temp: 14.0, tds: 250, turbidity: 8.0 } },
-  ocean: { name: 'Coastal Ocean', base: { ph: 8.1, temp: 22.0, tds: 35000, turbidity: 1.2 } },
-  industrial: { name: 'Industrial Runoff', base: { ph: 5.5, temp: 28.0, tds: 1200, turbidity: 45.0 } }
+const WATER_BODIES: Record<string, WaterBody> = {
+  esp32_Station_01: { name: 'ESP32 Live Sensor', type: 'live' },
+  lake: { name: 'Freshwater Lake (Simulated)', type: 'simulated', base: { ph: 7.2, temp: 18.5, tds: 150, turbidity: 2.5 } },
+  river: { name: 'Flowing River (Simulated)', type: 'simulated', base: { ph: 7.6, temp: 14.0, tds: 250, turbidity: 8.0 } },
+  ocean: { name: 'Coastal Ocean (Simulated)', type: 'simulated', base: { ph: 8.1, temp: 22.0, tds: 35000, turbidity: 1.2 } },
+  industrial: { name: 'Industrial Runoff (Simulated)', type: 'simulated', base: { ph: 5.5, temp: 28.0, tds: 1200, turbidity: 45.0 } }
 };
 
 const WaterQualityDashboard = () => {
   const [isMonitoring, setIsMonitoring] = useState(true);
-  const [selectedBody, setSelectedBody] = useState('lake');
+  const [selectedBody, setSelectedBody] = useState('esp32_Station_01');
   const [data, setData] = useState({
     wqi: 0,
     ph: 0,
@@ -35,6 +42,7 @@ const WaterQualityDashboard = () => {
     ammonia: 0
   });
   const [loading, setLoading] = useState(false);
+  const [videoError, setVideoError] = useState(false);
 
   // Ammonia spike threshold for warning
   const ammoniaWarningThreshold = 0.05;
@@ -52,51 +60,77 @@ const WaterQualityDashboard = () => {
 
     setLoading(true);
     const fetchData = async () => {
-      // 1. Generate realistic raw inputs based on the selected water body
-      const base = WATER_BODIES[selectedBody as keyof typeof WATER_BODIES].base;
-      const fluctuate = (val: number, maxDelta: number) => {
-        const delta = (Math.random() * maxDelta * 2) - maxDelta;
-        return val + delta;
-      };
+      const bodyConfig = WATER_BODIES[selectedBody] || WATER_BODIES.lake;
+      const API_URL = import.meta.env.VITE_API_URL || '';
 
-      const currentInputs = {
-        turbidity: Math.max(0, fluctuate(base.turbidity, base.turbidity * 0.1)),
-        temperature_c: fluctuate(base.temp, 0.5),
-        tds_ppm: Math.max(0, fluctuate(base.tds, base.tds * 0.05)),
-        ph: Math.min(14, Math.max(0, fluctuate(base.ph, 0.2))),
-        source_k_factor: 0.67
-      };
-
-      // 2. Send to backend
       try {
-        const response = await fetch('http://localhost:8080/api/v1/analyze-water', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            "device id": `sensor-${selectedBody}`,
-            "timestamp": Math.floor(Date.now() / 1000),
-            "sensors": currentInputs
-          })
-        });
+        if (bodyConfig.type === 'live') {
+          // Fetch live data from the backend
+          const response = await fetch(`${API_URL}/api/v1/readings?device_id=${selectedBody}&limit=1`);
+          if (response.ok) {
+            const result = await response.json();
+            if (result.readings && result.readings.length > 0) {
+              const latest = result.readings[0];
+              setData({
+                wqi: latest.wqi,
+                ph: latest.ph,
+                temperature: latest.temperature_c,
+                tds: Math.round(latest.tds_ppm),
+                turbidity: latest.turbidity,
+                ec: latest.ec,
+                tss: latest.tss,
+                do: latest.predicted_do,
+                ammonia: latest.nh3_risk
+              });
+            }
+            setLoading(false);
+          }
+        } else {
+          // 1. Generate realistic raw inputs based on the selected water body
+          const base = bodyConfig.base || { ph: 7.2, temp: 18.5, tds: 150, turbidity: 2.5 };
+          const fluctuate = (val: number, maxDelta: number) => {
+            const delta = (Math.random() * maxDelta * 2) - maxDelta;
+            return val + delta;
+          };
 
-        if (response.ok) {
-          const result = await response.json();
-          const metrics = result.calculated_metrics;
-          
-          setData({
-            wqi: metrics.water_quality_index,
-            ph: currentInputs.ph,
-            temperature: currentInputs.temperature_c,
-            tds: Math.round(currentInputs.tds_ppm),
-            turbidity: currentInputs.turbidity,
-            ec: metrics.electrical_conductivity_us_cm,
-            tss: metrics.total_suspended_solids_mg_l,
-            do: metrics.predicted_dissolved_oxygen_mg_l,
-            ammonia: metrics.ammonia_toxicity_risk_pct_nh3
+          const currentInputs = {
+            turbidity: Math.max(0, fluctuate(base.turbidity, base.turbidity * 0.1)),
+            temperature_c: fluctuate(base.temp, 0.5),
+            tds_ppm: Math.max(0, fluctuate(base.tds, base.tds * 0.05)),
+            ph: Math.min(14, Math.max(0, fluctuate(base.ph, 0.2))),
+            source_k_factor: 0.67
+          };
+
+          // 2. Send to backend
+          const response = await fetch(`${API_URL}/api/v1/analyze-water`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              "device id": `sensor-${selectedBody}`,
+              "timestamp": Math.floor(Date.now() / 1000),
+              "sensors": currentInputs
+            })
           });
-          setLoading(false);
+
+          if (response.ok) {
+            const result = await response.json();
+            const metrics = result.calculated_metrics;
+            
+            setData({
+              wqi: metrics.water_quality_index,
+              ph: currentInputs.ph,
+              temperature: currentInputs.temperature_c,
+              tds: Math.round(currentInputs.tds_ppm),
+              turbidity: currentInputs.turbidity,
+              ec: metrics.electrical_conductivity_us_cm,
+              tss: metrics.total_suspended_solids_mg_l,
+              do: metrics.predicted_dissolved_oxygen_mg_l,
+              ammonia: metrics.ammonia_toxicity_risk_pct_nh3
+            });
+            setLoading(false);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch from backend", error);
@@ -113,16 +147,26 @@ const WaterQualityDashboard = () => {
 
   return (
     <div className="min-h-screen font-sans text-slate-50 relative overflow-hidden">
-      {/* Local Background Video */}
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="fixed inset-0 w-[100vw] h-[100vh] z-[-1] pointer-events-none object-cover"
-      >
-        <source src="/background.mp4" type="video/mp4" />
-      </video>
+      {/* Background Video with Fallback */}
+      {!videoError ? (
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="fixed inset-0 w-[100vw] h-[100vh] z-[-1] pointer-events-none object-cover"
+          onError={() => setVideoError(true)}
+        >
+          <source src="/background.mp4" type="video/mp4" />
+        </video>
+      ) : (
+        <iframe
+          className="fixed inset-0 w-[100vw] h-[100vh] z-[-1] pointer-events-none scale-150"
+          src="https://www.youtube.com/embed/YQc4ZiUMPuc?autoplay=1&mute=1&controls=0&loop=1&playlist=YQc4ZiUMPuc&showinfo=0&rel=0"
+          allow="autoplay; encrypted-media"
+          frameBorder="0"
+        />
+      )}
       
       {/* Slight dark overlay to ensure text remains readable */}
       <div className="fixed inset-0 bg-black/40 z-[-1] pointer-events-none"></div>

@@ -1,10 +1,9 @@
-fastapi==0.115.0
-uvicorn==0.30.6
-pydantic==2.9.2
-pandas==2.2.2
-joblib==1.4.2
-lightgbm==4.5.0
-# psycopg2-binary is only needed if you later set DATABASE_URL to a Postgres
-# connection string. Running fully local, the backend auto-falls-back to
-# SQLite, so this isn't required right now.
-# psycopg2-binary==2.9.9
+fastapi>=0.115.0
+uvicorn>=0.30.0
+pydantic>=2.9.0
+pandas>=2.2.0
+numpy>=1.26.0
+lightgbm>=4.5.0
+joblib>=1.4.0
+scikit-learn>=1.5.0
+psycopg2-binary>=2.9.9
